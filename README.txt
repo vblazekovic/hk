@@ -1,7 +1,7 @@
-HK Podravka – admin aplikacija
+HK Podravka – admin aplikacija (v5)
 
 Pokretanje:
   pip install -r requirements.txt
-  streamlit run hk_podravka_full_fixed.py
+  streamlit run hk_podravka_full_v5.py
 
-Za PDF dijakritike, stavite DejaVuSans.ttf u isti folder.
+Uploadi se spremaju u folder 'uploads/'.
