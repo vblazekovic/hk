@@ -1,3 +1,5 @@
+import streamlit as st
+
 # Ispravljena verzija dijela hk_podravka_app.py
 
 c_id = st.selectbox(
