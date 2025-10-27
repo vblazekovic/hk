@@ -34,7 +34,14 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
-def ensure_coaches_table(conn):
+def cur = conn.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS coaches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
+        group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
+    )""")
+    conn.commit()
+    :
     conn.execute("""CREATE TABLE IF NOT EXISTS coaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
@@ -46,10 +53,14 @@ def ensure_coaches_exists(conn):
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='coaches'")
     if cur.fetchone() is None:
-        ensure_coaches_table(conn)
-
-
-def init_db():
+        cur = conn.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS coaches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
+        group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
+    )""")
+    conn.commit()
+    def init_db():
     c = get_conn()
     cur = c.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS club_info (
@@ -109,8 +120,14 @@ def init_db():
     try:
         return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
     except Exception:
-        ensure_coaches_table(conn)
-        return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
+        cur = conn.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS coaches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
+        group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
+    )""")
+    conn.commit()
+    return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
 
 
 
@@ -118,10 +135,14 @@ def init_db():
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='coaches'")
     if cur.fetchone() is None:
-        ensure_coaches_table(conn)
-
-
-def css_style():
+        cur = conn.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS coaches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
+        group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
+    )""")
+    conn.commit()
+    def css_style():
     st.markdown(f"""
     <style>
       .app-header {{background: linear-gradient(90deg,{PRIMARY_RED},{GOLD}); color:{WHITE}; padding:16px 20px; border-radius:16px; margin-bottom:16px;}}
