@@ -441,9 +441,21 @@ def section_competitions():
     # treneri (lista imena iz coaches)
     import sqlite3 as _sq
     try:
+        import sqlite3 as _sq
+    try:
+        coaches_df = pd.read_sql_query("SELECT id, first_name, last_name FROM coaches ORDER BY last_name, first_name", conn)
+    except Exception:
+        conn.execute("""CREATE TABLE IF NOT EXISTS coaches (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT, group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT)""");
+        conn.commit();
         coaches_df = pd.read_sql_query("SELECT id, first_name, last_name FROM coaches ORDER BY last_name, first_name", conn)
     except Exception:
         conn.execute("""CREATE TABLE IF NOT EXISTS coaches (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT, group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT)"""); conn.commit();
+        import sqlite3 as _sq
+    try:
+        coaches_df = pd.read_sql_query("SELECT id, first_name, last_name FROM coaches ORDER BY last_name, first_name", conn)
+    except Exception:
+        conn.execute("""CREATE TABLE IF NOT EXISTS coaches (id INTEGER PRIMARY KEY AUTOINCREMENT, first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT, group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT)""");
+        conn.commit();
         coaches_df = pd.read_sql_query("SELECT id, first_name, last_name FROM coaches ORDER BY last_name, first_name", conn)
     coach_names = st.multiselect("Trener(i) koji su vodili", options=(coaches_df["first_name"]+" "+coaches_df["last_name"]).tolist())
 
