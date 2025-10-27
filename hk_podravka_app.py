@@ -33,8 +33,7 @@ def get_conn():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
-
-def cur = conn.cursor()
+    cur = conn.cursor()
     cur.execute("""CREATE TABLE IF NOT EXISTS coaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
