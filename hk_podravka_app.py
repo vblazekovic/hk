@@ -91,7 +91,16 @@ def init_db():
     c.commit(); c.close()
 
 
+    try:
+        return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
+    except Exception:
+        ensure_coaches_table(conn)
+        return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
+
+
+
 def ensure_coaches_table(conn):
+    # Create coaches table if it doesn't exist
     conn.execute("""CREATE TABLE IF NOT EXISTS coaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
@@ -99,12 +108,12 @@ def ensure_coaches_table(conn):
     )""")
     conn.commit()
 
-def read_coaches_df(conn, cols="id, first_name, last_name, dob, oib, email, iban, group_name", order="last_name, first_name"):
-    try:
-        return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
-    except Exception:
+def ensure_coaches_exists(conn):
+    # Check via sqlite_master then create if missing
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='coaches'")
+    if cur.fetchone() is None:
         ensure_coaches_table(conn)
-        return pd.read_sql_query(f"SELECT {cols} FROM coaches ORDER BY {order}", conn)
 
 
 def css_style():
@@ -401,7 +410,8 @@ def section_coaches():
         conn.commit(); st.success("Trener spremljen.")
 
     st.markdown("---"); st.markdown("### Popis trenera")
-    coaches_df = read_coaches_df(conn)
+    ensure_coaches_exists(conn)
+    coaches_df = pd.read_sql_query("""SELECT id, first_name, last_name, dob, oib, email, iban, group_name FROM coaches ORDER BY last_name, first_name""", conn)
     if not coaches_df.empty:
         edited = st.data_editor(coaches_df, num_rows="dynamic", use_container_width=True, key="coaches_grid_v63")
         c1,c2,c3 = st.columns(3)
@@ -451,7 +461,9 @@ def section_competitions():
     countries_n = c5.number_input("Broj zemalja", min_value=0, step=1)
 
     # treneri (lista imena iz coaches)
-    coaches_df = read_coaches_df(conn, cols="id, first_name, last_name", order="last_name, first_name")
+    ensure_coaches_exists(conn)
+    ensure_coaches_exists(conn)
+    coaches_df = pd.read_sql_query("SELECT id, first_name, last_name FROM coaches ORDER BY last_name, first_name", conn)
     coach_names = st.multiselect("Trener(i) koji su vodili", options=(coaches_df["first_name"]+" "+coaches_df["last_name"]).tolist())
 
     notes = st.text_area("Zapažanje trenera / opis za objavu")
