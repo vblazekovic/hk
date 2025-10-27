@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-HK Podravka – Admin aplikacija (čista verzija v7.1)
+HK Podravka – Admin aplikacija
 Sekcije: Klub, Članovi, Treneri, Natjecanja i rezultati, Statistika
 Boje: crvena, bijela, zlatna
 """
