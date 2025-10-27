@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-HK Podravka – Admin (v8)
-Dodane sekcije: Grupe, Veterani, Prisustvo, Popis/Email.
-Isticanje: liječ. potvrda crveno 14 dana prije isteka ili nakon isteka.
+HK Podravka – Admin (v9)
+Popravljeno: selectbox f-string (bez escape).
+Dodano: Statistika (po godinama, uzrastima, natjecanjima, medaljama) s izvozom.
 """
 import os, io, json, sqlite3
 from datetime import date, datetime, timedelta, time
@@ -19,7 +19,6 @@ def get_conn():
 
 def init_db():
     conn = get_conn(); cur = conn.cursor()
-    # members (if not exists)
     cur.execute("""CREATE TABLE IF NOT EXISTS members (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         first_name TEXT, last_name TEXT, dob TEXT, gender TEXT, oib TEXT UNIQUE,
@@ -33,13 +32,11 @@ def init_db():
         application_path TEXT, consent_path TEXT,
         medical_path TEXT, medical_valid_until TEXT, consent_checked_date TEXT
     )""")
-    # coaches
     cur.execute("""CREATE TABLE IF NOT EXISTS coaches (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
         group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
     )""")
-    # competitions & results
     cur.execute("""CREATE TABLE IF NOT EXISTS competitions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         kind TEXT, kind_other TEXT, name TEXT,
@@ -57,19 +54,16 @@ def init_db():
         category TEXT, style TEXT, fights_total INTEGER, wins INTEGER, losses INTEGER, placement INTEGER,
         wins_detail_json TEXT, losses_detail_json TEXT, note TEXT
     )""")
-    # groups
     cur.execute("""CREATE TABLE IF NOT EXISTS groups (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE, description TEXT
     )""")
-    # attendance trainers
     cur.execute("""CREATE TABLE IF NOT EXISTS attendance_trainers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         coach_id INTEGER REFERENCES coaches(id) ON DELETE SET NULL,
         coach_name TEXT, group_name TEXT,
         date TEXT, time_from TEXT, time_to TEXT, place TEXT, hours REAL
     )""")
-    # attendance athletes
     cur.execute("""CREATE TABLE IF NOT EXISTS attendance_members (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         member_id INTEGER REFERENCES members(id) ON DELETE SET NULL,
@@ -104,7 +98,7 @@ def excel_bytes(df: pd.DataFrame, sheet="Sheet1"):
         df.to_excel(w, index=False, sheet_name=sheet)
     return out.getvalue()
 
-# ===== Postojeće bitne sekcije (skraćeno) =====
+# ===== Sekcije =====
 def section_coaches():
     page_header("Treneri", "Popis trenera")
     conn = get_conn()
@@ -114,7 +108,7 @@ def section_coaches():
         st.error(f"SQL greška: {e}")
         coaches_df = pd.DataFrame()
     if not coaches_df.empty:
-        edited = st.data_editor(coaches_df, num_rows="dynamic", use_container_width=True, key="coaches_grid_v8")
+        edited = st.data_editor(coaches_df, num_rows="dynamic", use_container_width=True, key="coaches_grid_v9")
         c1,c2,c3 = st.columns(3)
         if c1.button("Spremi izmjene (treneri)"):
             for _, r in edited.iterrows():
@@ -124,7 +118,8 @@ def section_coaches():
         del_id = c2.number_input("ID za brisanje", min_value=0, step=1, value=0)
         if c3.button("Obriši trenera") and del_id>0:
             conn.execute("DELETE FROM coaches WHERE id=?", (int(del_id),)); conn.commit(); st.success("Trener obrisan."); st.rerun()
-    with st.form("coach_new_v8"):
+    # Unos novog
+    with st.form("coach_new_v9"):
         st.subheader("Dodaj trenera")
         c1,c2,c3 = st.columns(3)
         first_name = c1.text_input("Ime"); last_name = c2.text_input("Prezime"); dob = c3.date_input("Datum rođenja", value=date(1990,1,1))
@@ -144,7 +139,7 @@ def highlight_medical(df):
             d = pd.to_datetime(str(r.get(col,"") or ""), errors="coerce")
         except Exception:
             d = pd.NaT
-        if pd.isna(d): 
+        if pd.isna(d):
             return ['']*len(r)
         days = (d.date() - date.today()).days
         if days <= 14:
@@ -163,12 +158,11 @@ def section_members():
         st.info("Nema članova u bazi.")
     conn.close()
 
-# ===== NOVE SEKCIJE =====
 def section_groups():
     page_header("Grupe", "Upravljanje grupama, premještaj članova")
     conn = get_conn()
     groups = pd.read_sql_query("SELECT id, name, description FROM groups ORDER BY name", conn)
-    edited = st.data_editor(groups, num_rows="dynamic", use_container_width=True, key="groups_grid_v8")
+    edited = st.data_editor(groups, num_rows="dynamic", use_container_width=True, key="groups_grid_v9")
     c1,c2 = st.columns(2)
     if c1.button("Spremi grupe"):
         conn.execute("DELETE FROM groups")
@@ -188,7 +182,7 @@ def section_groups():
     st.markdown("---"); st.subheader("Excel uvoz/izvoz članova po grupama")
     export = pd.read_sql_query("SELECT id, first_name, last_name, group_name FROM members ORDER BY group_name, last_name", conn)
     st.download_button("Skini Excel (članovi/grupe)", data=excel_bytes(export, sheet="Grupe"), file_name="clanovi_grupe.xlsx", disabled=export.empty)
-    up = st.file_uploader("Učitaj Excel (kolone: id, group_name)", type=["xlsx"], key="groups_upload_v8")
+    up = st.file_uploader("Učitaj Excel (kolone: id, group_name)", type=["xlsx"], key="groups_upload_v9")
     if up:
         try:
             dfu = pd.read_excel(up)
@@ -220,35 +214,40 @@ def section_attendance():
     tab1, tab2, tab3 = st.tabs(["Treneri – evidencija","Članovi – evidencija","Sažetak"])
     with tab1:
         coaches = pd.read_sql_query("SELECT id, first_name||' '||last_name AS name FROM coaches ORDER BY last_name", conn)
-        c_id = st.selectbox("Trener", ["-"] + [f\"{r['id']} – {r['name']}\" for _, r in coaches.iterrows()])
+        coach_opts = ["-"] + [f"{r['id']} – {r['name']}" for _, r in coaches.iterrows()]
+        c_id = st.selectbox("Trener", coach_opts)
         gname = st.text_input("Grupa"); d = st.date_input("Datum", value=date.today())
         t1 = st.time_input("Od", value=time(18,0)); t2 = st.time_input("Do", value=time(19,0)); place = st.text_input("Mjesto (dvorana/igralište)")
         if st.button("Spremi prisustvo trenera"):
             hours = (datetime.combine(date.today(), t2)-datetime.combine(date.today(), t1)).seconds/3600.0
-            coach_id = int(c_id.split(" – ")[0]) if c_id!=\"-\" else None
-            coach_name = c_id.split(" – ")[1] if c_id!=\"-\" else ""
-            conn.execute(\"\"\"INSERT INTO attendance_trainers(coach_id,coach_name,group_name,date,time_from,time_to,place,hours)
-                            VALUES(?,?,?,?,?,?,?,?)\"\"\", (coach_id,coach_name,gname,d.isoformat(),t1.isoformat(),t2.isoformat(),place,hours))
+            if c_id != "-":
+                coach_id = int(c_id.split(" – ")[0])
+                coach_name = c_id.split(" – ")[1]
+            else:
+                coach_id = None; coach_name = ""
+            conn.execute("""INSERT INTO attendance_trainers(coach_id,coach_name,group_name,date,time_from,time_to,place,hours)
+                            VALUES(?,?,?,?,?,?,?,?)""", (coach_id,coach_name,gname,d.isoformat(),t1.isoformat(),t2.isoformat(),place,hours))
             conn.commit(); st.success("Spremljeno.")
     with tab2:
         members = pd.read_sql_query("SELECT id, first_name||' '||last_name AS name, group_name FROM members ORDER BY last_name", conn)
-        sel = st.multiselect("Članovi", [f\"{r['id']} – {r['name']} ({r['group_name'] or ''})\" for _, r in members.iterrows()])
+        mem_opts = [f"{r['id']} – {r['name']} ({r['group_name'] or ''})" for _, r in members.iterrows()]
+        sel = st.multiselect("Članovi", mem_opts)
         gname = st.text_input("Grupa (ako nije ista)"); d = st.date_input("Datum", value=date.today())
         hours = st.number_input("Sati", value=1.0); status = st.selectbox("Status", ["Prisutan","Odsutan","Opravdano"])
         if st.button("Spremi prisustvo članova") and sel:
             for s in sel:
                 mid = int(s.split(" – ")[0])
                 mname = s.split(" – ")[1].split(" (")[0]
-                conn.execute(\"\"\"INSERT INTO attendance_members(member_id,member_name,group_name,date,hours,status)
-                                VALUES(?,?,?,?,?,?)\"\"\", (mid,mname,gname,d.isoformat(),float(hours),status))
+                conn.execute("""INSERT INTO attendance_members(member_id,member_name,group_name,date,hours,status)
+                                VALUES(?,?,?,?,?,?)""", (mid,mname,gname,d.isoformat(),float(hours),status))
             conn.commit(); st.success("Spremljeno.")
     with tab3:
         month = st.selectbox("Mjesec", list(range(1,13)), index=datetime.now().month-1)
         year = st.number_input("Godina", min_value=2000, max_value=2100, value=datetime.now().year, step=1)
-        tdf = pd.read_sql_query(\"\"\"SELECT coach_name, group_name, date, hours FROM attendance_trainers
-                                   WHERE substr(date,1,4)=? AND CAST(substr(date,6,2) AS INT)=?\"\"\", conn, params=(str(year),int(month)))
-        mdf = pd.read_sql_query(\"\"\"SELECT member_name, group_name, date, hours, status FROM attendance_members
-                                   WHERE substr(date,1,4)=? AND CAST(substr(date,6,2) AS INT)=?\"\"\", conn, params=(str(year),int(month)))
+        tdf = pd.read_sql_query("""SELECT coach_name, group_name, date, hours FROM attendance_trainers
+                                   WHERE substr(date,1,4)=? AND CAST(substr(date,6,2) AS INT)=?""", conn, params=(str(year),int(month)))
+        mdf = pd.read_sql_query("""SELECT member_name, group_name, date, hours, status FROM attendance_members
+                                   WHERE substr(date,1,4)=? AND CAST(substr(date,6,2) AS INT)=?""", conn, params=(str(year),int(month)))
         st.subheader("Treneri – sažetak"); st.dataframe(tdf, use_container_width=True)
         st.subheader("Članovi – sažetak"); st.dataframe(mdf, use_container_width=True)
     conn.close()
@@ -256,7 +255,7 @@ def section_attendance():
 def section_mail():
     page_header("Popis članova & komunikacija", "Filtriranje i priprema e-mailova")
     conn = get_conn()
-    df = pd.read_sql_query(\"\"\"SELECT id, first_name, last_name, athlete_email, parent_email, group_name, medical_valid_until FROM members ORDER BY last_name\"\"\", conn)
+    df = pd.read_sql_query("""SELECT id, first_name, last_name, athlete_email, parent_email, group_name, medical_valid_until FROM members ORDER BY last_name""", conn)
     group = st.text_input("Filtriraj po grupi")
     if group.strip():
         df = df[df["group_name"].fillna("").str.contains(group.strip(), case=False)]
@@ -267,16 +266,70 @@ def section_mail():
     st.download_button("Skini Excel", data=excel_bytes(df, "Popis"), file_name="popis.xlsx", disabled=df.empty)
     conn.close()
 
+def section_statistics():
+    page_header("Statistika", "Po godinama, uzrastima, natjecanjima i medaljama")
+    conn = get_conn()
+    # Učitamo natjecanja i rezultate
+    comps = pd.read_sql_query("""SELECT id, kind, age_cat, style, name, date_from, country, team_rank FROM competitions""", conn)
+    res = pd.read_sql_query("""SELECT r.id, r.competition_id, r.member_id, r.category, r.style, r.fights_total, r.wins, r.losses, r.placement
+                               FROM results r""", conn)
+    if comps.empty:
+        st.info("Nema unesenih natjecanja.")
+        conn.close(); return
+    comps["year"] = pd.to_datetime(comps["date_from"], errors="coerce").dt.year
+    # Filteri
+    years = sorted(comps["year"].dropna().unique().tolist())
+    sel_years = st.multiselect("Godine", years, default=years)
+    sel_age = st.multiselect("Uzrasti", sorted(comps["age_cat"].dropna().unique().tolist()))
+    sel_kind = st.multiselect("Vrste natjecanja", sorted(comps["kind"].dropna().unique().tolist()))
+    filt = comps.copy()
+    if sel_years: filt = filt[filt["year"].isin(sel_years)]
+    if sel_age: filt = filt[filt["age_cat"].isin(sel_age)]
+    if sel_kind: filt = filt[filt["kind"].isin(sel_kind)]
+    st.subheader("Broj natjecanja po godini")
+    by_year = filt.groupby("year").size().reset_index(name="natjecanja")
+    st.dataframe(by_year, use_container_width=True)
+    st.download_button("Skini (godina/natjecanja)", data=excel_bytes(by_year,"PoGodini"), file_name="stat_natjecanja_po_godini.xlsx", disabled=by_year.empty)
+    st.subheader("Natjecanja po uzrastima i vrstama")
+    piv = pd.pivot_table(filt, index="age_cat", columns="kind", values="id", aggfunc="count", fill_value=0)
+    st.dataframe(piv, use_container_width=True)
+    # Medalje: spajamo s rezultatima
+    if not res.empty:
+        merged = res.merge(filt[["id","year","age_cat","kind"]], left_on="competition_id", right_on="id", how="inner", suffixes=("_r","_c"))
+        medals = merged.assign(
+            gold = (merged["placement"]==1).astype(int),
+            silver = (merged["placement"]==2).astype(int),
+            bronze = (merged["placement"]==3).astype(int),
+        )
+        # po godinama
+        byY = medals.groupby("year")[["gold","silver","bronze"]].sum().reset_index()
+        st.subheader("Medalje po godinama"); st.dataframe(byY, use_container_width=True)
+        st.download_button("Skini (medalje/godine)", data=excel_bytes(byY,"MedaljeGodina"), file_name="medalje_po_godinama.xlsx", disabled=byY.empty)
+        # po uzrastima
+        byA = medals.groupby("age_cat")[["gold","silver","bronze"]].sum().reset_index()
+        st.subheader("Medalje po uzrastima"); st.dataframe(byA, use_container_width=True)
+        # po vrstama natjecanja
+        byK = medals.groupby("kind")[["gold","silver","bronze"]].sum().reset_index()
+        st.subheader("Medalje po vrstama natjecanja"); st.dataframe(byK, use_container_width=True)
+        # ukupno borbe/pobjede/porazi
+        fights = medals.groupby("year")[["fights_total","wins","losses"]].sum().reset_index()
+        st.subheader("Borbe/pobjede/porazi po godinama"); st.dataframe(fights, use_container_width=True)
+    else:
+        st.info("Još nema rezultata.")
+
+    conn.close()
+
 def main():
     st.set_page_config(page_title="HK Podravka – Admin", layout="wide")
     css_style(); init_db()
-    menu = st.sidebar.radio("Izbornik", ["Članovi","Treneri","Grupe","Prisustvo","Veterani","Popis/Email"])
+    menu = st.sidebar.radio("Izbornik", ["Članovi","Treneri","Grupe","Prisustvo","Veterani","Popis/Email","Statistika"])
     if menu == "Članovi": section_members()
     elif menu == "Treneri": section_coaches()
     elif menu == "Grupe": section_groups()
     elif menu == "Prisustvo": section_attendance()
     elif menu == "Veterani": section_veterans()
-    else: section_mail()
+    elif menu == "Popis/Email": section_mail()
+    else: section_statistics()
 
 if __name__ == "__main__":
     main()
