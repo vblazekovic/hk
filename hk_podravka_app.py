@@ -34,6 +34,21 @@ def get_conn():
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
+def ensure_coaches_table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS coaches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
+        group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
+    )""")
+    conn.commit()
+
+def ensure_coaches_exists(conn):
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='coaches'")
+    if cur.fetchone() is None:
+        ensure_coaches_table(conn)
+
+
 def init_db():
     c = get_conn()
     cur = c.cursor()
@@ -99,16 +114,6 @@ def init_db():
 
 
 
-def ensure_coaches_table(conn):
-    # Create coaches table if it doesn't exist
-    conn.execute("""CREATE TABLE IF NOT EXISTS coaches (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        first_name TEXT, last_name TEXT, dob TEXT, oib TEXT, email TEXT, iban TEXT,
-        group_name TEXT, contract_path TEXT, other_docs_json TEXT, photo_path TEXT
-    )""")
-    conn.commit()
-
-def ensure_coaches_exists(conn):
     # Check via sqlite_master then create if missing
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='coaches'")
