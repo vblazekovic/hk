@@ -1,7 +1,7 @@
-HK Podravka – admin aplikacija (v6)
+HK Podravka – Admin aplikacija v6.3 (stabilna)
 
 Pokretanje:
   pip install -r requirements.txt
-  streamlit run hk_podravka_full_v6.py
+  streamlit run hk_podravka_full_v6_3.py
 
-Uploadi se spremaju u folder 'uploads/'.
+Odjeljci uključeni: Klub, Članovi, Treneri, Natjecanja i rezultati, Statistika.
